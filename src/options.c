@@ -1,13 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-
-#include "bool.h"
 #include "options.h"
 
 void parseTerminalOptions(int argc, char *argv[], struct options_struct *options)
 {
 	int i;
-	for (i = 1; i < argc && argv[i][0] == '-'; i++)
+	for (i = 1; i < argc && argv[i][0] == '-'; ++i)
 	{
 		switch (argv[i][1])
 		{
@@ -27,9 +23,9 @@ void parseTerminalOptions(int argc, char *argv[], struct options_struct *options
 
 void printHelp(int argc, char *argv[])
 {
-	printf("Your command:\n");
 	int i;
-	for (i = 0; i < argc; i++)
+	printf("Your command:\n");
+	for (i = 0; i < argc; ++i)
 	{
 		printf("%s ", argv[i]);
 	}

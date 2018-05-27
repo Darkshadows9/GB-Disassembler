@@ -1,6 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "sort.h"
 
 size_t *shrinkArray(size_t *array, size_t size)
@@ -19,21 +16,23 @@ size_t deleteDuplicateValuesUnsigned(size_t *array, size_t size)
 {
 	size_t i;
 	size_t j = 0;
-	for (i = 0; i < size - 1; i++)
+	for (i = 0; i < size - 1; ++i, ++j)
 	{
-		if (array[i] != array[i + 1])
+		array[j] = array[i];
+		if (array[i] == array[i + 1])
 		{
-			array[j] = array[i];
-			j++;
+			--j;
 		}
 	}
-	array[j] = array[size - 1];
-	j++;
+	array[j] = array[i];
+	++j;
 	size = j;
 	return size;
 }
 
-void quickSortUnsigned(size_t *array, size_t elements) /* Based off: http://alienryderflex.com/quicksort/ */
+/* Based off: http://alienryderflex.com/quicksort/ */
+/* Pretty sure this implementation is broken somehow.
+void quickSortUnsigned(size_t *array, size_t elements)
 {
 	size_t pivot;
 	size_t beg[300];
@@ -53,28 +52,28 @@ void quickSortUnsigned(size_t *array, size_t elements) /* Based off: http://alie
 			{
 				while (array[right] >= pivot && left < right)
 				{
-					right--;
+					--right;
 				}
 				if (left < right)
 				{
 					array[left] = array[right];
-					left++;
+					++left;
 				}
 				while (left < elements && array[left] <= pivot && left < right)
 				{
-					left++;
+					++left;
 				}
 				if (left < right)
 				{
 					array[right] = array[left];
-					right--;
+					--right;
 				}
 			}
 			array[left] = pivot;
 			beg[i + 1] = left + 1;
 			end[i + 1] = end[i];
 			end[i] = left;
-			i++;
+			++i;
 			if (end[i] - beg[i] > end[i - 1] - beg[i - 1])
 			{
 				swap = beg[i];
@@ -91,14 +90,33 @@ void quickSortUnsigned(size_t *array, size_t elements) /* Based off: http://alie
 		}
 	}
 }
+*/
 
-size_t *sortUnsigned(size_t *array, size_t elements)
+int qsortSizeCmp(const void *a, const void *b)
+{
+	const size_t ai = *(const size_t*)a;
+	const size_t bi = *(const size_t*)b;
+	if(ai > bi)
+	{
+		return 1;
+	}
+	else if(ai < bi)
+	{
+		return -1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+size_t sortUnsigned(size_t *array, size_t elements)
 {
 	if (elements > 1)
 	{
-		quickSortUnsigned(array, elements);
+		qsort(array, elements, sizeof(size_t), qsortSizeCmp);
 		elements = deleteDuplicateValuesUnsigned(array, elements);
 		array = shrinkArray(array, elements);
 	}
-	return array;
+	return elements;
 }

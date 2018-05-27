@@ -1,89 +1,238 @@
-#include <stdio.h>
-
-#include "input.h"
-#include "options.h"
-#include "jumps.h"
 #include "disassemble.h"
+
+const unsigned char ONE_OPERAND_OPS[AMT_ONE_OPS] = {0x06, 0x0E, 0x16, 0x26, 0x2E, 0x36, 0x3E, 0xC6, 0xCE, 0xD6, 0xDE, 0xE0, 0xE6, 0xE8, 0xEE, 0xF0, 0xF6, 0xF8, 0xFE};
+const unsigned char TWO_OPERAND_OPS[AMT_TWO_OPS] = {0x01, 0x08, 0x11, 0x21, 0xEA, 0xFA};
+const unsigned char ABSOLUTE_JUMPS[AMT_ABS_JMPS] = {0xC2, 0xC3, 0xC4, 0xCA, 0xCC, 0xCD, 0xD2, 0xD4, 0xDA, 0xDC};
+const unsigned char RELATIVE_JUMPS[AMT_REL_JMPS] = {0x18, 0x20, 0x28, 0x30, 0x38};
+
+/*We need these macros, becase RGBDS doesn't properly support relative jumps with pure hex values, only labels.*/
+void saveRelativeJumpMacros(FILE *file_pointer)
+{
+	fprintf(file_pointer, "jumpRelative EQUS	\"db	18\\ndb	\\1\"\n");
+	fprintf(file_pointer, "jumpRelativeNZ EQUS	\"db	20\\ndb	\\1\"\n");
+	fprintf(file_pointer, "jumpRelativeZ EQUS	\"db	28\\ndb	\\1\"\n");
+	fprintf(file_pointer, "jumpRelativeNC EQUS	\"db	30\\ndb	\\1\"\n");
+	fprintf(file_pointer, "jumpRelativeC EQUS	\"db	38\\ndb	\\1\"\n\n");
+	return;
+}
+
+void findPossibleJumps(struct input_struct *input, struct jumps_struct *jumps)
+{
+	size_t *absolutes_temp;
+	size_t *relatives_temp;
+	jumps->absolutes_index = 0;
+	jumps->relatives_index = 0;
+	jumps->absolutes_size = 1024;
+	jumps->relatives_size = 1024;
+	jumps->absolutes = malloc(sizeof(jumps->absolutes) * jumps->absolutes_size);
+	jumps->relatives = malloc(sizeof(jumps->relatives) * jumps->relatives_size);
+	if (!jumps->absolutes || !jumps->relatives)
+	{
+		printf("Failed to allocate memory for jump buffers.");
+		exit(EXIT_FAILURE);
+	}
+	for (input->index = 0; input->index < input->size; ++input->index)
+	{
+		unsigned char op = input->buffer[input->index];
+		unsigned char a = 0;
+		unsigned char b = 0;
+		bool no_absolutes = FALSE;
+		size_t i;
+
+		if (jumps->absolutes_size == jumps->absolutes_index)
+		{
+			size_t *absolutes_temp;
+			jumps->absolutes_size += 1024;
+			absolutes_temp = realloc(jumps->absolutes, sizeof(*jumps->absolutes) * jumps->absolutes_size);
+			if (!absolutes_temp)
+			{
+				printf("Failed to reallocate memory for absolutes jump buffer.");
+				exit(EXIT_FAILURE);
+			}
+			jumps->absolutes = absolutes_temp;
+		}
+		if (jumps->relatives_size == jumps->relatives_index)
+		{
+			size_t *relatives_temp;
+			jumps->relatives_size += 1024;
+			relatives_temp = realloc(jumps->relatives, sizeof(*jumps->relatives) * jumps->relatives_size);
+			if (!relatives_temp)
+			{
+				printf("Failed to reallocate memory for relatives jump buffer.");
+				exit(EXIT_FAILURE);
+			}
+			jumps->relatives = relatives_temp;
+		}
+
+		if(input->index + 1 <= input->size)
+		{
+			a = input->buffer[input->index + 1];
+		}
+		else
+		{
+			break;
+		}
+		if (input->index + 2 <= input->size)
+		{
+			b = input->buffer[input->index + 2];
+		}
+		else
+		{
+			no_absolutes = TRUE;
+		}
+		for (i = 0; i < AMT_ABS_JMPS; ++i)
+		{
+			if (op == ABSOLUTE_JUMPS[i])
+			{
+				if (no_absolutes)
+				{
+					break;
+				}
+				jumps->absolutes[jumps->absolutes_index] = (unsigned short)b << 8;
+				jumps->absolutes[jumps->absolutes_index] += a;
+				if (jumps->absolutes[jumps->absolutes_index] >= ROMX_START)
+				{
+					jumps->absolutes[jumps->absolutes_index] += (input->index / 4000) * 4000;
+				}
+				jumps->absolutes_index++;
+				input->index += 2;
+				break;
+			}
+		}
+		for (i = 0; i < AMT_REL_JMPS; ++i)
+		{
+			if (op == RELATIVE_JUMPS[i])
+			{
+				jumps->relatives[jumps->relatives_index] = input->index;
+				if (a < 128)
+				{
+					jumps->relatives[jumps->relatives_index] += a;
+				}
+				else
+				{
+					jumps->relatives[jumps->relatives_index] += -(a & 128) + (a & ~128);
+				}
+				jumps->relatives_index++;
+				input->index++;
+				break;
+			}
+		}
+	}
+	absolutes_temp = realloc(jumps->absolutes, sizeof(*jumps->absolutes) * (jumps->absolutes_index + 1));
+	relatives_temp = realloc(jumps->relatives, sizeof(*jumps->relatives) * (jumps->relatives_index + 1));
+	if (!absolutes_temp || !relatives_temp)
+	{
+		printf("Failed to reallocate memory for jump buffers.");
+		exit(EXIT_FAILURE);
+	}
+	jumps->absolutes = absolutes_temp;
+	jumps->relatives = relatives_temp;
+	jumps->absolutes_size = sortUnsigned(jumps->absolutes, jumps->absolutes_index + 1);
+	jumps->relatives_size = sortUnsigned(jumps->relatives, jumps->relatives_index + 1);
+	jumps->absolutes_index = 0;
+	jumps->relatives_index = 0;
+	return;
+}
 
 size_t decodeOp(FILE *file_pointer, struct input_struct *input, struct options_struct *options, struct jumps_struct *jumps)
 {
-	size_t extra_increment = 0;
 	unsigned char op = input->buffer[input->index];
 	unsigned char a = input->buffer[input->index + 1];
 	unsigned char b = input->buffer[input->index + 2];
-
-	size_t op_check;
-	for (op_check = 0; op_check < AMT_ONE_OPS; op_check++)
-	{
-		if (op == ONE_OPERAND_OPS[op_check])
-		{
-			extra_increment = 1;
-			break;
-		}
-	}
-	for (op_check = 0; op_check < AMT_TWO_OPS; op_check++)
-	{
-		if (op == TWO_OPERAND_OPS[op_check])
-		{
-			extra_increment = 2;
-			break;
-		}
-	}
-	extra_increment += 1;
+	size_t extra_increment = 0;
 
 	/*Check the address of every operand of the opcode and make sure we don't need a label there.
 	If we do, just translate the hex values up until the label, place it, then decode that op.*/
-	/*TODO: Not labeling correctly. Issue with how I derive values and with how I sort things.*/
+	/*TODO: Not saving all labels correctly. Error has to be here, because sorting function works properly, verified by viewing heap.*/
+	/*Minimized version:
+	if (options->label_jumps)
+	{
+		char op = getop();
+		size_t i;
+		size_t op_check;
+		unsigned char extra_increment = operandsForOp(op);
+
+		for (op_check = 0; op_check < extra_increment + 1; ++op_check)
+		{
+			if (input->index + op_check == jumps->absolutes[jumps->absolutes_index])
+			{
+				for (i = 0; i < op_check; ++i)
+				{
+					fprintf(file_pointer, "    db $%02X            ; $%04zX\n", input->buffer[input->index + i], input->index + i);
+				}
+				input->index += op_check;
+				fprintf(file_pointer, "ROM%04zX:\n", input->index);
+				++jumps->absolutes_index;
+				break;
+			}
+		}
+	}*/
 	if (options->label_jumps)
 	{
 		size_t i;
 		size_t j;
-		for (op_check = 0; op_check < extra_increment; op_check++)
+		
+		size_t op_check;
+		/*TODO: I shouldn't assume jumps aren't hiding labels.
+		Having unused labels is more important to solve than unused jumps,
+		since those will still work once assembled.*/
+		for (op_check = 0; op_check < AMT_ONE_OPS; ++op_check)
 		{
-			for (i = 0; i < jumps->absolutes_size; i++)
+			if (op == ONE_OPERAND_OPS[op_check])
 			{
-				if (input->index + op_check == jumps->absolutes[i])
-				{
-					for (j = 0; j < op_check; j++)
-					{
-						fprintf(file_pointer, "	db $%02X			; $%04zX\n", input->buffer[input->index + j], input->index + j);
-					}
-					input->index += op_check;
-					fprintf(file_pointer, "ROM%04zX:\n", input->index);
-					jumps->absolutes_index++;
-					break;
-				}
-				else if (input->index + op_check > jumps->absolutes[i])
-				{
-					break;
-				}
+				extra_increment = 1;
+				break;
 			}
 		}
-		for (op_check = 0; op_check < extra_increment; op_check++)
+		for (op_check = 0; op_check < AMT_TWO_OPS; ++op_check)
 		{
-			for (i = 0; i < jumps->relatives_size; i++)
+			if (op == TWO_OPERAND_OPS[op_check])
 			{
-				if (input->index + op_check == jumps->relatives[i])
+				extra_increment = 2;
+				break;
+			}
+		}
+
+		for (op_check = 0; op_check < extra_increment + 1; ++op_check)
+		{
+			if (input->index + op_check == jumps->absolutes[jumps->absolutes_index])
+			{
+				for (j = 0; j < op_check; ++j)
 				{
-					for (j = 0; j < op_check; j++)
-					{
-						fprintf(file_pointer, "	db $%02X			; $%04zX", input->buffer[input->index + j], input->index + j);
-					}
-					input->index += op_check;
-					fprintf(file_pointer, "ROM%04zX.\n", input->index);
-					jumps->relatives_index++;
-					break;
+					fprintf(file_pointer, "	db $%02X			; $%04zX\n", input->buffer[input->index + j], input->index + j);
 				}
-				else if (input->index + op_check > jumps->relatives[i])
+				input->index += op_check;
+				fprintf(file_pointer, "ROM%04zX:\n", input->index);
+				++jumps->absolutes_index;
+				break;
+			}
+		}
+		
+		for (op_check = 0; op_check < extra_increment + 1; ++op_check)
+		{
+			if (input->index + op_check < jumps->relatives[jumps->relatives_index])
+			{
+				break;
+			}
+			else if (input->index + op_check == jumps->relatives[jumps->relatives_index])
+			{
+				for (j = 0; j < op_check; ++j)
 				{
-					break;
+					fprintf(file_pointer, "	db $%02X			; $%04zX\n", input->buffer[input->index + j], input->index + j);
 				}
+				input->index += op_check;
+				fprintf(file_pointer, "ROM%04zX.\n", input->index);
+				++jumps->relatives_index;
+				break;
 			}
 		}
 	}
 
 	extra_increment = 0;
-
+	op = input->buffer[input->index];
+	a = input->buffer[input->index + 1];
+	b = input->buffer[input->index + 2];
+	
 	/*Switch statement for all GB opcodes.*/
 	switch (op)
 	{
@@ -1105,7 +1254,7 @@ void vectorInterruptDisassemble(FILE *file_pointer, struct input_struct *input, 
 {
 	printf("Starting vector/interrupt dump...\n");
 	fprintf(file_pointer, "SECTION \"Vectors and interrupts\", ROM0[$%04X]\n", VECTORS_START);
-	for (input->index = VECTORS_START; (input->index < HEADER_START && input->index < input->size); input->index++)
+	for (input->index = VECTORS_START; (input->index < HEADER_START && input->index < input->size); ++input->index)
 	{
 		input->index += decodeOp(file_pointer, input, options, jumps);
 	}
@@ -1115,23 +1264,24 @@ void vectorInterruptDisassemble(FILE *file_pointer, struct input_struct *input, 
 
 void headerDisassemble(FILE *file_pointer, struct input_struct *input, struct jumps_struct *jumps, struct options_struct *options)
 {
+	unsigned char i;
+	unsigned char j;
+
 	input->index = HEADER_START;
 	printf("Starting header dump...\n");
 	fprintf(file_pointer, "SECTION \"Header\", ROM0[$%04X]\n", HEADER_START);
 	fprintf(file_pointer, "; Entrypoint:\n");
-	for (input->index = 0x100; input->index < 0x104; input->index++)
+	for (input->index = 0x100; input->index < 0x104; ++input->index)
 	{
 		input->index += decodeOp(file_pointer, input, options, jumps);
 	}
 
 	fprintf(file_pointer, "; Scrolling Nintendo graphic:\n");
 
-	unsigned char i;
-	unsigned char j;
-	for (i = 0; i < 3; i++)
+	for (i = 0; i < 3; ++i)
 	{
 		fprintf(file_pointer, "	db	");
-		for (j = 0; j < 15; j++, input->index++)
+		for (j = 0; j < 15; ++j, ++input->index)
 		{
 			fprintf(file_pointer, "$%02X,", input->buffer[input->index]);
 		}
@@ -1140,7 +1290,7 @@ void headerDisassemble(FILE *file_pointer, struct input_struct *input, struct ju
 	}
 
 	fprintf(file_pointer, "	db	\"");
-	for (i = 0; i < 15; i++, input->index++)
+	for (i = 0; i < 15; ++i, ++input->index)
 	{
 		fprintf(file_pointer, "%c", input->buffer[input->index]);
 	}
@@ -1197,7 +1347,7 @@ void ROM0Disassemble(FILE *file_pointer, struct input_struct *input, struct jump
 	{
 		ROM0_end = input->size;
 	}
-	for (input->index = ROM0_START; input->index < ROM0_end; input->index++)
+	for (input->index = ROM0_START; input->index < ROM0_end; ++input->index)
 	{
 		input->index += decodeOp(file_pointer, input, options, jumps);
 	}
@@ -1214,7 +1364,7 @@ void ROMXDisassemble(FILE *file_pointer, struct input_struct *input, struct jump
 		size_t bank = ((input->index / ROMX_START) - 1);
 		printf("Starting ROMX bank[$%02zX] dump...\n", bank);
 		fprintf(file_pointer, "SECTION \"ROMX Bank[%02zX] Start\", ROMX[$%04zX]\n", bank, address_start);
-		for (input->index = address_start; (input->index < address_end && input->index < input->size); input->index++)
+		for (input->index = address_start; (input->index < address_end && input->index < input->size); ++input->index)
 		{
 			input->index += decodeOp(file_pointer, input, options, jumps);
 		}
@@ -1238,7 +1388,7 @@ void simpleDisassemble(FILE *file_pointer, struct input_struct *input, struct ju
 {
 	printf("Starting dump...\n");
 	fprintf(file_pointer, "SECTION \"Start\"\n");
-	for (input->index = VECTORS_START; input->index < input->size; input->index++)
+	for (input->index = VECTORS_START; input->index < input->size; ++input->index)
 	{
 		input->index += decodeOp(file_pointer, input, options, jumps);
 	}

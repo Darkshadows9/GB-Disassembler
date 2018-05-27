@@ -1,15 +1,13 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "input.h"
 
 void loadInput(int argc, char *argv[], struct input_struct *input)
 {
 	FILE *file_pointer;
-	file_pointer = fopen(argv[argc - 2], "rb");
+	printf("Loading input file: %s.\n", argv[argc - INPUT_OFFSET]);
+	file_pointer = fopen(argv[argc - INPUT_OFFSET], "rb");
 	if (!file_pointer)
 	{
-		printf("Failed to open file: %s.\n", argv[argc - 2]);
+		printf("Failed to open file: %s.\n", argv[argc - INPUT_OFFSET]);
 		exit(EXIT_FAILURE);
 	}
 	fseek(file_pointer, 0, SEEK_END);
