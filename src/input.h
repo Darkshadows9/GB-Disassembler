@@ -7,13 +7,13 @@
 #define INPUT_OFFSET	2
 #define OUTPUT_OFFSET	1
 
-struct input_struct
+struct input_s
 {
 	unsigned char *buffer;
 	size_t size;
 	size_t index;
 };
 
-void loadInput(int argc, char *argv[], struct input_struct *input);
+void loadInput(int argc, char *argv[], struct input_s *input);
 
 #endif /*INPUT_INC*/

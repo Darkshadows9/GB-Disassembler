@@ -6,14 +6,14 @@
 
 #include "bool.h"
 
-struct options_struct
+struct options_s
 {
 	bool help;
 	bool simple_mode;
 	bool label_jumps;
 };
 
-void parseTerminalOptions(int argc, char *argv[], struct options_struct *options);
+void parseTerminalOptions(int argc, char *argv[], struct options_s *options);
 void printHelp();
 
 #endif /*OPTIONS_INC*/

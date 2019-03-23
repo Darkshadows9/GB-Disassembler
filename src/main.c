@@ -10,9 +10,9 @@
 
 int main(int argc, char *argv[])
 {
-	struct input_struct input;
-	struct jumps_struct jumps;
-	struct options_struct options = {FALSE};
+	struct input_s input;
+	struct labels_s labels;
+	struct options_s options = {FALSE};
 	FILE *output_file_pointer;
 
 	/*Get command line options.*/
@@ -39,7 +39,7 @@ int main(int argc, char *argv[])
 	/*Label jumps or use pure hex values?*/
 	if(options.label_jumps)
 	{
-		findPossibleJumps(&input, &jumps);
+		findPossibleJumps(&input, &labels);
 	}
 	else
 	{
@@ -49,11 +49,11 @@ int main(int argc, char *argv[])
 	/*Simple or normal disassembly?*/
 	if(options.simple_mode || input.size < 0x150)
 	{
-		simpleDisassemble(output_file_pointer, &input, &jumps, &options);
+		simpleDisassemble(output_file_pointer, &input, &labels, &options);
 	}
 	else
 	{
-		complexDisassemble(output_file_pointer, &input, &jumps, &options);
+		complexDisassemble(output_file_pointer, &input, &labels, &options);
 	}
 
 	/*Cleanup and exit.*/

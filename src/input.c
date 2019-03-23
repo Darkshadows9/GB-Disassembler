@@ -1,6 +1,6 @@
 #include "input.h"
 
-void loadInput(int argc, char *argv[], struct input_struct *input)
+void loadInput(int argc, char *argv[], struct input_s *input)
 {
 	FILE *file_pointer;
 	printf("Loading input file: %s.\n", argv[argc - INPUT_OFFSET]);

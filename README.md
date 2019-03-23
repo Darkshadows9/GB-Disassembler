@@ -3,7 +3,7 @@ This repository contains a dissassembler for the Gameboy's processor, the Sharp 
 
 The disassembler's output contains Sharp LR35902 assembly capable of being assembled and linked by the RGBDS development suite.
 
-Compile Disassembler.c using Make.bat.
+Compile using GCC. Load in Visual Studio Code and build. Alternatively, use GCC directly and target the src folder. I use -Wall, -ansi, and -O3 for release.
 
 This is the output of the program's -h flag:
 Your command:

@@ -1,33 +1,62 @@
 #include "sort.h"
 
-size_t *shrinkArray(size_t *array, size_t size)
+int qsortSizeCmp(const void *a, const void *b)
 {
-	size_t *array_temp = realloc(array, sizeof(*array_temp) * size);
+	const size_t ai = *(const size_t*)a;
+	const size_t bi = *(const size_t*)b;
+	if(ai > bi)
+	{
+		return 1;
+	}
+	else if(ai < bi)
+	{
+		return -1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+void deleteDuplicateValuesUnsigned(struct array_s *u_array)
+{
+	size_t i;
+	size_t j = 0;
+	for (i = 0; i < u_array->size - 1; ++i, ++j)
+	{
+		u_array->array[j] = u_array->array[i];
+		if (u_array->array[i] == u_array->array[i + 1])
+		{
+			--j;
+		}
+	}
+	u_array->array[j] = u_array->array[i];
+	++j;
+	u_array->size = j;
+	return;
+}
+
+void shrinkArray(struct array_s *u_array)
+{
+	size_t *array_temp = realloc(u_array->array, sizeof(u_array->array) * u_array->size);
 	if (!array_temp)
 	{
 		printf("Failed to reallocate memory when shrinking array.\n");
 		exit(EXIT_FAILURE);
 	}
-	array = array_temp;
-	return array;
+	u_array->array = array_temp;
+	return;
 }
 
-size_t deleteDuplicateValuesUnsigned(size_t *array, size_t size)
+void sortUnsigned(struct array_s *u_array)
 {
-	size_t i;
-	size_t j = 0;
-	for (i = 0; i < size - 1; ++i, ++j)
+	if (u_array->size > 1)
 	{
-		array[j] = array[i];
-		if (array[i] == array[i + 1])
-		{
-			--j;
-		}
+		qsort(u_array->array, u_array->size, sizeof(u_array->array[0]), qsortSizeCmp);
+		deleteDuplicateValuesUnsigned(u_array);
+		shrinkArray(u_array);
 	}
-	array[j] = array[i];
-	++j;
-	size = j;
-	return size;
+	return;
 }
 
 /* Based off: http://alienryderflex.com/quicksort/ */
@@ -91,32 +120,3 @@ void quickSortUnsigned(size_t *array, size_t elements)
 	}
 }
 */
-
-int qsortSizeCmp(const void *a, const void *b)
-{
-	const size_t ai = *(const size_t*)a;
-	const size_t bi = *(const size_t*)b;
-	if(ai > bi)
-	{
-		return 1;
-	}
-	else if(ai < bi)
-	{
-		return -1;
-	}
-	else
-	{
-		return 0;
-	}
-}
-
-size_t sortUnsigned(size_t *array, size_t elements)
-{
-	if (elements > 1)
-	{
-		qsort(array, elements, sizeof(size_t), qsortSizeCmp);
-		elements = deleteDuplicateValuesUnsigned(array, elements);
-		array = shrinkArray(array, elements);
-	}
-	return elements;
-}

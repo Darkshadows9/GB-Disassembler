@@ -4,6 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-size_t sortUnsigned(size_t *array, size_t elements);
+struct array_s
+{
+	size_t *array;
+	size_t index;
+	size_t size;
+};
+
+void sortUnsigned(struct array_s *u_array);
 
 #endif /*SORT_INC*/

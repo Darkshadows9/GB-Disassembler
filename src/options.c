@@ -1,6 +1,6 @@
 #include "options.h"
 
-void parseTerminalOptions(int argc, char *argv[], struct options_struct *options)
+void parseTerminalOptions(int argc, char *argv[], struct options_s *options)
 {
 	int i;
 	for (i = 1; i < argc && argv[i][0] == '-'; ++i)
